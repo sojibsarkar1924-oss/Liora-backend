@@ -8,6 +8,15 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+const cron = require('node-cron');
+const { distributeTeamBonus } = require('./controllers/teamBonusController');
+
+// প্রতিদিন রাত ১২টায় team bonus দেবে
+cron.schedule('0 0 * * *', () => {
+  console.log('🕛 Daily team bonus শুরু হচ্ছে...');
+  distributeTeamBonus();
+});
+
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('✅ Database Connected!'))
     .catch(err => console.error('❌ DB Error:', err));
