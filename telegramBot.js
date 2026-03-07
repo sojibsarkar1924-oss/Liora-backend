@@ -1,9 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
 
 const TOKEN = '8633022184:AAH0wwm6aU7W1zLgRSTtmtRUbEXEyG1nm7w';
-const SUPPORT_GROUP = 'https://t.me/আপনার_group_username'; // ← আপনার group link দিন
+const SUPPORT_GROUP = 'https://t.me/+EMlRsLJX1I42YTk1'; // ← আপনার group link দিন
 
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(TOKEN, { 
+  polling: process.env.RAILWAY_ENVIRONMENT ? true : false 
+});
 
 // ✅ /start command
 bot.onText(/\/start/, (msg) => {
