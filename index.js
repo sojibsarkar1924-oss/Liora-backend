@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 require('dotenv').config();
+require('./telegramBot');
 const cors = require('cors');
 
 const app = express();
