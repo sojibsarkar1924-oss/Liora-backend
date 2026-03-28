@@ -33,6 +33,13 @@ app.get('/api/maintenance/toggle-liora-secret-2026', (req, res) => {
   maintenanceMode = !maintenanceMode;
   res.json({ maintenance: maintenanceMode, msg: maintenanceMode ? '🔴 Maintenance চালু' : '🟢 App চালু' });
 });
+// 🔴 Global Maintenance Block
+app.use((req, res, next) => {
+  if (maintenanceMode && !req.path.includes('maintenance')) {
+    return res.status(503).json({ success: false, msg: '🔴 সার্ভার সাময়িক বন্ধ আছে' });
+  }
+  next();
+});
 
 // ✅ Routes
 app.use('/api/auth',        require('./routes/authRoutes'));
