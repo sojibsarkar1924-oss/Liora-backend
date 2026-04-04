@@ -40,7 +40,24 @@ app.use((req, res, next) => {
   }
   next();
 });
+// ✅ bKash Number Switch System
+let bkashNumbers = ['01636257147', '01812323466']; // আপনার ২টি নাম্বার দিন
+let activeIndex = 0;
 
+// App থেকে active নাম্বার নেবে
+app.get('/api/config/active-number', (req, res) => {
+  res.json({ number: bkashNumbers[activeIndex] });
+});
+
+// Browser থেকে switch করবেন
+app.get('/api/config/switch-number-liora-2026', (req, res) => {
+  activeIndex = (activeIndex + 1) % bkashNumbers.length;
+  res.json({ 
+    switched: true, 
+    now: bkashNumbers[activeIndex],
+    msg: ✅ এখন নাম্বার: ${bkashNumbers[activeIndex]}
+  });
+});
 // ✅ Routes
 app.use('/api/auth',        require('./routes/authRoutes'));
 app.use('/api/payment',     require('./routes/paymentRoutes'));
