@@ -40,23 +40,28 @@ app.use((req, res, next) => {
   }
   next();
 });
-// ✅ bKash Number Switch System
-let bkashNumbers = ['01636257147', '01812323466']; // আপনার ২টি নাম্বার দিন
-let activeIndex = 0;
+// ✅ bKash Number Switch System (Database)
+const bkashConfigSchema = new mongoose.Schema({
+  activeNumber: { type: String, default: '01636257147' }
+});
+const BkashConfig = mongoose.model('BkashConfig', bkashConfigSchema);
 
-// App থেকে active নাম্বার নেবে
-app.get('/api/config/active-number', (req, res) => {
-  res.json({ number: bkashNumbers[activeIndex] });
+const numbers = ['01636257147', '01812323466'];
+
+app.get('/api/config/active-number', async (req, res) => {
+  let config = await BkashConfig.findOne();
+  if (!config) config = await BkashConfig.create({});
+  res.json({ number: config.activeNumber });
 });
 
-// Browser থেকে switch করবেন
-app.get('/api/config/switch-number-liora-2026', (req, res) => {
-  activeIndex = (activeIndex + 1) % bkashNumbers.length;
-  res.json({ 
-    switched: true, 
-    now: bkashNumbers[activeIndex],
-    msg: "Number switched successfully"
-  });
+app.get('/api/config/switch-number-liora-2026', async (req, res) => {
+  let config = await BkashConfig.findOne();
+  if (!config) config = await BkashConfig.create({});
+  const currentIndex = numbers.indexOf(config.activeNumber);
+  const nextNumber = numbers[(currentIndex + 1) % numbers.length];
+  config.activeNumber = nextNumber;
+  await config.save();
+  res.json({ switched: true, now: nextNumber });
 });
 // ✅ Routes
 app.use('/api/auth',        require('./routes/authRoutes'));
