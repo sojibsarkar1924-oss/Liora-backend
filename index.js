@@ -47,11 +47,9 @@ const bkashConfigSchema = new mongoose.Schema({
 const BkashConfig = mongoose.model('BkashConfig', bkashConfigSchema);
 
 const numbers = ['01636257147', '01812323466'];
-
-app.get('/api/config/active-number', async (req, res) => {
-  let config = await BkashConfig.findOne();
-  if (!config) config = await BkashConfig.create({});
-  res.json({ number: config.activeNumber });
+app.get('/api/config/reset-number-liora', async (req, res) => {
+  await BkashConfig.deleteMany({});
+  res.json({ msg: 'Reset done' });
 });
 
 app.get('/api/config/switch-number-liora-2026', async (req, res) => {
