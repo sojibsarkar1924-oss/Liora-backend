@@ -55,7 +55,7 @@ app.get('/api/config/switch-number-liora-2026', (req, res) => {
   res.json({ 
     switched: true, 
     now: bkashNumbers[activeIndex],
-    msg: ✅ এখন নাম্বার: ${bkashNumbers[activeIndex]}
+    msg: "Number switched successfully"
   });
 });
 // ✅ Routes
