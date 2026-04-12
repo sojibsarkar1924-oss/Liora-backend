@@ -20,46 +20,28 @@ mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('✅ Database Connected!'))
     .catch(err => console.error('❌ DB Error:', err));
 
-// ✅ Maintenance Mode
-let maintenanceMode = false;
-const fs = require('fs');
-const MAINTENANCE_FILE = './maintenance.json';
-const getMaintenanceStatus = () => {
-  try {
-    return JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')).maintenance;
-  } catch { return false; }
-};
-const setMaintenanceStatus = (value) => {
-  fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify({ maintenance: value }));
-};
+const Config = require('./models/Config');
 
-
-// Maintenance check API
-app.get('/api/maintenance', (req, res) => {
-  res.json({ maintenance: maintenanceMode });
+// Maintenance check
+app.get('/api/maintenance', async (req, res) => {
+  const config = await Config.findOne({ key: 'maintenance' });
+  res.json({ maintenance: config?.value || false });
 });
 
-// Secret toggle URL — শুধু আপনি জানবেন
-app.get('/api/maintenance/toggle-liora-secret-2026', (req, res) => {
-  maintenanceMode = !maintenanceMode;
-  res.json({ maintenance: maintenanceMode, msg: maintenanceMode ? '🔴 Maintenance চালু' : '🟢 App চালু' });
-});
-// 🔴 Global Maintenance Block
-app.use((req, res, next) => {
-  if (getMaintenanceStatus() &&!req.path.includes('maintenance')) {
-    return res.status(503).json({ success: false, msg: '🔴 সার্ভার সাময়িক বন্ধ আছে' });
-  }
-  next();
-});
-app.get('/api/maintenance/status', (req, res) => {
-  res.json({ maintenance: getMaintenanceStatus() });
-});
-app.get('/api/maintenance/toggle', (req, res) => {
-  const newStatus = !getMaintenanceStatus();
-  setMaintenanceStatus(newStatus);
-  res.json({ maintenance: newStatus });
+// Toggle maintenance
+app.get('/api/maintenance/toggle-liora-secret-2026', async (req, res) => {
+  const config = await Config.findOne({ key: 'maintenance' });
+  const newValue = !(config?.value || false);
+  await Config.findOneAndUpdate(
+    { key: 'maintenance' },
+    { value: newValue },
+    { upsert: true }
+  );
+  res.json({ maintenance: newValue, msg: newValue ? '🔴 App বন্ধ' : '🟢 App চালু' });
 });
 
+
+// Maintenance c
 // ✅ bKash Number Switch System (Database)
 const bkashConfigSchema = new mongoose.Schema({
   activeNumber: { type: String, default: '01636257147' }
