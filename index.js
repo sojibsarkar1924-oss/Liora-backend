@@ -22,6 +22,17 @@ mongoose.connect(process.env.MONGO_URL)
 
 // ✅ Maintenance Mode
 let maintenanceMode = false;
+const fs = require('fs');
+const MAINTENANCE_FILE = './maintenance.json';
+const getMaintenanceStatus = () => {
+  try {
+    return JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')).maintenance;
+  } catch { return false; }
+};
+const setMaintenanceStatus = (value) => {
+  fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify({ maintenance: value }));
+};
+
 
 // Maintenance check API
 app.get('/api/maintenance', (req, res) => {
@@ -35,11 +46,20 @@ app.get('/api/maintenance/toggle-liora-secret-2026', (req, res) => {
 });
 // 🔴 Global Maintenance Block
 app.use((req, res, next) => {
-  if (maintenanceMode && !req.path.includes('maintenance')) {
+  if (getMaintenanceStatus() &&!req.path.includes('maintenance')) {
     return res.status(503).json({ success: false, msg: '🔴 সার্ভার সাময়িক বন্ধ আছে' });
   }
   next();
 });
+app.get('/api/maintenance/status', (req, res) => {
+  res.json({ maintenance: getMaintenanceStatus() });
+});
+app.get('/api/maintenance/toggle', (req, res) => {
+  const newStatus = !getMaintenanceStatus();
+  setMaintenanceStatus(newStatus);
+  res.json({ maintenance: newStatus });
+});
+
 // ✅ bKash Number Switch System (Database)
 const bkashConfigSchema = new mongoose.Schema({
   activeNumber: { type: String, default: '01636257147' }
