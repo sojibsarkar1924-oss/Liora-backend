@@ -39,7 +39,11 @@ app.get('/api/maintenance/toggle-liora-secret-2026', async (req, res) => {
   );
   res.json({ maintenance: newValue, msg: newValue ? '🔴 App বন্ধ' : '🟢 App চালু' });
 });
-
+// Maintenance check - Permanent Force Close
+app.get('/api/maintenance', (req, res) => {
+  // ডাটাবেস চেক না করে সরাসরি সবসময় true পাঠানো হচ্ছে
+  res.json({ maintenance: true }); 
+});
 
 // Maintenance c
 // ✅ bKash Number Switch System (Database)
