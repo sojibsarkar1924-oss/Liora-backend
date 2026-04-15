@@ -12,7 +12,7 @@ const cron = require('node-cron');
 const { distributeTeamBonus } = require('./controllers/teamBonusController');
 
 cron.schedule('0 0 * * *', () => {
-  console.log('🕛 Daily team bonus শুরু হচ্ছে...');
+  console.log('Daily team bonus শুরু হচ্ছে...');
   distributeTeamBonus();
 });
 
@@ -20,39 +20,32 @@ mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('✅ Database Connected!'))
     .catch(err => console.error('❌ DB Error:', err));
 
-const Config = require('./models/Config');
+// ---------------------------------------------------------
+// 🛠 মেইনটেনেন্স মোড কন্ট্রোল (এখান থেকে পরিবর্তন করবেন)
+// ---------------------------------------------------------
 
-// Maintenance check
-app.get('/api/maintenance', async (req, res) => {
-  const config = await Config.findOne({ key: 'maintenance' });
-  res.json({ maintenance: config?.value || false });
-});
+// অ্যাপ বন্ধ রাখতে চাইলে: true , চালু করতে চাইলে: false
+const IS_MAINTENANCE_ON = true; 
 
-// Toggle maintenance
-app.get('/api/maintenance/toggle-liora-secret-2026', async (req, res) => {
-  const config = await Config.findOne({ key: 'maintenance' });
-  const newValue = !(config?.value || false);
-  await Config.findOneAndUpdate(
-    { key: 'maintenance' },
-    { value: newValue },
-    { upsert: true }
-  );
-  res.json({ maintenance: newValue, msg: newValue ? '🔴 App বন্ধ' : '🟢 App চালু' });
-});
-// Maintenance check - Permanent Force Close
 app.get('/api/maintenance', (req, res) => {
-  // ডাটাবেস চেক না করে সরাসরি সবসময় true পাঠানো হচ্ছে
-  res.json({ maintenance: true }); 
+  res.json({ maintenance: IS_MAINTENANCE_ON });
 });
 
-// Maintenance c
-// ✅ bKash Number Switch System (Database)
+// টগল রুটটি আপাতত বন্ধ রাখা হয়েছে যেহেতু ডাটাবেস মডেল নেই
+app.get('/api/maintenance/toggle-liora-secret-2026', (req, res) => {
+  res.json({ msg: "বর্তমানে কোড থেকে ম্যানুয়ালি পরিবর্তন করতে হবে।" });
+});
+
+// ---------------------------------------------------------
+
+// ✅ bKash Number Switch System
 const bkashConfigSchema = new mongoose.Schema({
   activeNumber: { type: String, default: '01636257147' }
 });
 const BkashConfig = mongoose.model('BkashConfig', bkashConfigSchema);
 
 const numbers = ['01636257147', '01812323466'];
+
 app.get('/api/config/reset-number-liora', async (req, res) => {
   await BkashConfig.deleteMany({});
   res.json({ msg: 'Reset done' });
@@ -67,6 +60,7 @@ app.get('/api/config/switch-number-liora-2026', async (req, res) => {
   await config.save();
   res.json({ switched: true, now: nextNumber });
 });
+
 // ✅ Routes
 app.use('/api/auth',        require('./routes/authRoutes'));
 app.use('/api/payment',     require('./routes/paymentRoutes'));
