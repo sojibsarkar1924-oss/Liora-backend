@@ -25,7 +25,7 @@ mongoose.connect(process.env.MONGO_URL)
 // ---------------------------------------------------------
 
 // অ্যাপ বন্ধ রাখতে চাইলে: true , চালু করতে চাইলে: false
-const IS_MAINTENANCE_ON = false; 
+const IS_MAINTENANCE_ON = true; 
 
 app.get('/api/maintenance', (req, res) => {
   res.json({ maintenance: IS_MAINTENANCE_ON });
