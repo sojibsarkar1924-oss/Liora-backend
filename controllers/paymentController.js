@@ -128,27 +128,21 @@ const approveDeposit = async (req, res) => {
 
     const packagePrice = Number(payment.packagePrice) || Number(payment.amount) || 0;
 
-    // ── ১. User এর welcome bonus (৭.৫%) ────────────────────
-    const welcomeBonus = Math.floor(packagePrice * 0.075);
+    // ── ১. User এর welcome bonus (of) ────────────────────
+    // ── ১. Welcome bonus বন্ধ ────────────────────
+await User.findByIdAndUpdate(payment.userId, {
+  $set: {
+    packageName:  payment.packageName,
+    package:      payment.packageName,
+    packagePrice: packagePrice,
+    taskLimit:    payment.taskLimit,
+    isActive:     true,
+    status:       'active',
+  },
+});
 
-    await User.findByIdAndUpdate(payment.userId, {
-      $set: {
-        packageName:  payment.packageName,
-        package:      payment.packageName,
-        packagePrice: packagePrice,
-        taskLimit:    payment.taskLimit,
-        isActive:     true,
-        status:       'active',
-      },
-      $inc: {
-        balance:       welcomeBonus,
-        wallet:        welcomeBonus,
-        totalEarnings: welcomeBonus,
-        welcomeBonus:  welcomeBonus,
-      },
-    });
+return res.json({ success: true, msg: 'Payment Approved.' });
 
-    console.log(`✅ Welcome bonus: ${user.name} → ৳${welcomeBonus} (৭.৫% of ৳${packagePrice})`);
 
     // ── ২. Referrer এর bonus (১০%) ─────────────────────────
     if (user.referredBy) {
