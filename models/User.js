@@ -1,15 +1,31 @@
 const mongoose = require('mongoose');
 
+// ── ছোট unique code generator ─────────────────────────────────
+const generateCode = (prefix = '', length = 8) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = prefix;
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 const UserSchema = new mongoose.Schema({
   // ===== মূল তথ্য =====
   name:     { type: String, required: true, trim: true },
-  email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
+  // ✅ email এখন optional — login এ ব্যবহার হবে না
+  email:    { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true },
   password: { type: String, required: true },
   phone:    { type: String, default: null },
 
   // ===== রেফারেল =====
+  // referralCode → নিজের unique code (login এ ব্যবহার হবে)
   referralCode: { type: String, unique: true, sparse: true },
-  referredBy:   { type: String, default: null },
+  referredBy:   { type: String, default: null }, // referrer এর referralCode
+
+  // ===== ID কোড (একাধিক একাউন্ট switch এর জন্য) =====
+  // ✅ নতুন field — প্রতিটি একাউন্টের জন্য আলাদা
+  idCode: { type: String, unique: true, sparse: true },
 
   // ===== টিম =====
   teamCount:     { type: Number, default: 0 },
@@ -19,15 +35,16 @@ const UserSchema = new mongoose.Schema({
   balance:       { type: Number, default: 0 },
   wallet:        { type: Number, default: 0 },
   totalEarnings: { type: Number, default: 0 },
-  referralBonus: { type: Number, default: 0 },
-  teamBonus:     { type: Number, default: 0 },
+  referralBonus: { type: Number, default: 0 }, // সরাসরি রেফার বোনাস (৬০ টাকা)
+  teamBonus:     { type: Number, default: 0 }, // টিম বোনাস (১০ টাকা × ৬ জেনারেশন)
   welcomeBonus:  { type: Number, default: 0 },
 
-  // ===== প্যাকেজ =====
-  package:      { type: String, default: 'None' },
-  packageName:  { type: String, default: 'None' },
-  packagePrice: { type: Number, default: 0 },
-  taskLimit:    { type: Number, default: 0 },
+  // ===== প্যাকেজ (fixed — শুধু একটি) =====
+  // ✅ সব user এর জন্য Liora Premium @ ৳৪০০
+  package:      { type: String, default: 'premium' },
+  packageName:  { type: String, default: 'Liora Premium' },
+  packagePrice: { type: Number, default: 400 },
+  taskLimit:    { type: Number, default: 10 },
 
   // ===== রোল ও স্ট্যাটাস =====
   role:   { type: String, enum: ['user', 'admin'], default: 'user' },
@@ -41,44 +58,34 @@ const UserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// ✅ Unique referral code generate helper
-const generateCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-};
-
-// ✅ FIXED: pre-save hook
-// ১. referralCode না থাকলে unique code তৈরি (collision check সহ)
-// ২. balance/wallet sync — শুধু নতুন user এর জন্য
+// ✅ pre-save: referralCode + idCode auto-generate
 UserSchema.pre('save', async function () {
 
-  // ── referralCode generate ──────────────────────────────────
+  // ── referralCode (login identifier) ───────────────────────
   if (!this.referralCode) {
-    let code;
-    let exists = true;
-
-    // ✅ FIXED: collision হলে নতুন code তৈরি করো (max 5 চেষ্টা)
-    for (let attempt = 0; attempt < 5; attempt++) {
-      code  = generateCode();
-      // ✅ 'this.constructor' = User model — require loop ছাড়া
+    let code, exists;
+    for (let i = 0; i < 5; i++) {
+      code   = generateCode('', 8); // e.g. "AB3X9K7M"
       exists = await this.constructor.findOne({ referralCode: code });
       if (!exists) break;
     }
-
     this.referralCode = code;
   }
 
-  // ── balance/wallet sync ────────────────────────────────────
-  // ✅ FIXED: findByIdAndUpdate এ isModified কাজ করে না
-  // তাই শুধু নতুন document এর জন্য sync করো
-  if (this.isNew) {
-    // নতুন user — balance=wallet=0, কিছু করার নেই
-    return;
+  // ── idCode (account switch identifier) ────────────────────
+  // ✅ নতুন: "LR" + 6 digits, e.g. "LR483920"
+  if (!this.idCode) {
+    let code, exists;
+    for (let i = 0; i < 5; i++) {
+      code   = 'LR' + Math.floor(100000 + Math.random() * 900000);
+      exists = await this.constructor.findOne({ idCode: code });
+      if (!exists) break;
+    }
+    this.idCode = code;
   }
+
+  // ── balance/wallet sync ────────────────────────────────────
+  if (this.isNew) return;
 
   if (this.isModified('balance')) {
     this.wallet = this.balance;

@@ -36,7 +36,7 @@ const PaymentSchema = new mongoose.Schema(
     method: {
       type:    String,
       enum:    {
-        values:  ['Bkash', 'Nagad', 'Rocket'],
+        values:  ['Bkash',],
         message: '{VALUE} supported নয়',
       },
       default: 'Bkash',

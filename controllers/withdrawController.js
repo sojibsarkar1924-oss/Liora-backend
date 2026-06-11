@@ -5,7 +5,7 @@ const Withdraw            = require('../models/Withdraw');
 const User                = require('../models/User');
 const { sendMoneyToUser } = require('../bkashService');
 
-const MIN_WITHDRAW = 850;
+const MIN_WITHDRAW = 1290;
 
 // ১. User — withdraw request
 exports.requestWithdraw = async (req, res) => {
