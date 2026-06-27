@@ -126,25 +126,24 @@ exports.register = async (req, res) => {
 // ============================================================
 exports.login = async (req, res) => {
   try {
-    const { referralCode, password } = req.body;
+    const { name, password } = req.body;
 
-    if (!referralCode || !password) {
-      return res.status(400).json({
-        success: false,
-        msg: 'আপনার রেফার কোড ও পাসওয়ার্ড দিন।',
-      });
-    }
+if (!name || !password) {
+  return res.status(400).json({
+    success: false,
+    msg: 'নাম ও পাসওয়ার্ড দিন।',
+  });
+}
 
-    // ── User খুঁজুন নিজের referralCode দিয়ে ────────────
-    const user = await User.findOne({
-      referralCode: referralCode.trim().toUpperCase(),
-    });
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        msg: 'রেফার কোড বা পাসওয়ার্ড ভুল।',
-      });
-    }
+const user = await User.findOne({
+  name: name.trim(),
+});
+if (!user) {
+  return res.status(400).json({
+    success: false,
+    msg: 'নাম বা পাসওয়ার্ড ভুল।',
+  });
+}
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
