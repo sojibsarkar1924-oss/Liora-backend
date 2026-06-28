@@ -1,3 +1,28 @@
 {
-  "expo": {}
+  "name": "WinWay",
+  "slug": "winway",
+  "expo": {
+    "name": "WinWay",
+    "slug": "winway",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0A0E1A"
+      },
+      "package": "com.sojibbackendadmin1.winway"
+    },
+    "ios": {},
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "43f8ad5a-3c6f-4842-91db-564d1cba6a7d"
+      }
+    }
+  }
 }
