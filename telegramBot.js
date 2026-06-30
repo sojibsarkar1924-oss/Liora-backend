@@ -11,7 +11,7 @@ const bot = new TelegramBot(TOKEN, {
 bot.onText(/\/start/, (msg) => {
   const name = msg.from.first_name || 'বন্ধু';
   bot.sendMessage(msg.chat.id,
-    `👋 স্বাগতম ${name}! Liora Support Bot এ আসার জন্য ধন্যবাদ!\n\n` +
+    `👋 স্বাগতম ${name}!wimway Support Bot এ আসার জন্য ধন্যবাদ!\n\n` +
     '📌 যা করতে পারবেন:\n' +
     '💰 /payment — পেমেন্ট সমস্যা\n' +
     '📱 /app — অ্যাপ সমস্যা\n' +

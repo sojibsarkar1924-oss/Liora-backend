@@ -13,10 +13,8 @@ const generateCode = (prefix = '', length = 8) => {
 const UserSchema = new mongoose.Schema({
   // ===== মূল তথ্য =====
   name:     { type: String, required: true, trim: true },
-  // ✅ email এখন optional — login এ ব্যবহার হবে না
-  email:    { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  phone:    { type: String, default: null },
+
 
   // ===== রেফারেল =====
   // referralCode → নিজের unique code (login এ ব্যবহার হবে)
@@ -40,9 +38,9 @@ const UserSchema = new mongoose.Schema({
   welcomeBonus:  { type: Number, default: 0 },
 
   // ===== প্যাকেজ (fixed — শুধু একটি) =====
-  // ✅ সব user এর জন্য Liora Premium @ ৳৪০০
+  // ✅ সব user এর জন্য WinWay Premium @ ৳৪০০
   package:      { type: String, default: 'premium' },
-  packageName:  { type: String, default: 'Liora Premium' },
+  packageName:  { type: String, default: 'WinWayPremium' },
   packagePrice: { type: Number, default: 400 },
   taskLimit:    { type: Number, default: 10 },
 
