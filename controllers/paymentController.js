@@ -2,12 +2,11 @@ const Payment = require('../models/Payment');
 const User    = require('../models/User');
 
 // ============================================================
-// Team Bonus হিসাব
-// ১জন=৳১০, ২জন=৳২০ ... ১০জন+=৳১০০
+// Team / Level Bonus হিসাব
 // ============================================================
 const getTeamBonus = (teamCount) => {
-  if (teamCount <= 0)  return 0;
-  if (teamCount >= 10) return 100;
+  if (teamCount <= 0) return 0;
+  if (teamCount >= 5) return 50;
   return teamCount * 10;
 };
 
@@ -100,11 +99,6 @@ const getPendingDeposits = async (req, res) => {
 
 // ============================================================
 // POST /api/payment/admin/approve-deposit
-// ✅ Approve হলে:
-//   ১. User এর package set + active
-//   ২. User পাবে package এর ৭.৫% (welcome bonus)
-//   ৩. Referrer পাবে package এর ১০% (referral bonus)
-//   ৪. Referrer এর teamCount++ → team bonus আপডেট
 // ============================================================
 const approveDeposit = async (req, res) => {
   try {
@@ -118,7 +112,7 @@ const approveDeposit = async (req, res) => {
       return res.status(404).json({ success: false, msg: 'পেমেন্ট পাওয়া যায়নি।' });
     }
     if (payment.status !== 'Pending') {
-      return res.status(400).json({ success: false, msg: `ইতিমধ্যে ${payment.status}।` });
+      return res.status(400).json({ success: false, msg: ইতিমধ্যে `${payment.status}।` });
     }
 
     const user = await User.findById(payment.userId);
@@ -128,55 +122,86 @@ const approveDeposit = async (req, res) => {
 
     const packagePrice = Number(payment.packagePrice) || Number(payment.amount) || 0;
 
-    // ── ১. User এর welcome bonus (of) ────────────────────
-    // ── ১. Welcome bonus বন্ধ ────────────────────
-await User.findByIdAndUpdate(payment.userId, {
-  $set: {
-    packageName:  payment.packageName,
-    package:      payment.packageName,
-    packagePrice: packagePrice,
-    taskLimit:    payment.taskLimit,
-    isActive:     true,
-    status:       'active',
-  },
-});
+    // ── ১. User এর Package Active করা ─────────────────────────
+    await User.findByIdAndUpdate(payment.userId, {
+      $set: {
+        packageName:  payment.packageName,
+        package:      payment.packageName,
+        packagePrice: packagePrice,
+        taskLimit:    payment.taskLimit,
+        isActive:     true,
+        status:       'active',
+      },
+    });
 
-return res.json({ success: true, msg: 'Payment Approved.' });
-
-
-    // ── ২. Referrer এর bonus (১০%) ─────────────────────────
+    // ── ২. ৫-লেভেল আপলাইন সিনিয়রদের বোনাস প্রদান ও লেভেল/ব্যাজ আপডেট ─────────────
     if (user.referredBy) {
-      const referrer = await User.findOne({ referralCode: user.referredBy });
+      let currentReferralCode = user.referredBy;
+      let level = 1;
 
-      if (referrer) {
-        const referralBonus = Math.floor(packagePrice * 0.10);
-        const newTeamCount  = (referrer.teamCount || 0) + 1;
-        const teamBonus     = getTeamBonus(newTeamCount);
+      // সর্বোচ্চ ৫ লেভেল (সিনিয়র ৫ জন) পর্যন্ত বোনাস যাবে
+      while (currentReferralCode && level <= 5) {
+        const seniorUser = await User.findOne({ referralCode: currentReferralCode });
+        if (!seniorUser) break; // সিনিয়র ইউজার না থাকলে লুপ বন্ধ হবে
 
-        // Referrer এর balance আপডেট
-        await User.findByIdAndUpdate(referrer._id, {
-          $set: { teamCount: newTeamCount, referralCount: newTeamCount },
+        let referralBonus = 0;
+        let levelBonus = 10; // প্রতিটি সিনিয়রের জন্য ৳১০ লেভেল বোনাস
+
+        // ১ম লেভেল (সরাসরি রেফারকারী) পাবে অতিরিক্ত ৳৫০ রেফার বোনাস (মোট ৳৬০)
+        if (level === 1) {
+          referralBonus = 50;
+        }
+
+        const totalBonus = referralBonus + levelBonus;
+        const isDirectReferrer = (level === 1);
+
+        // আপডেট অবজেক্ট তৈরি
+        const updateData = {
           $inc: {
-            balance:       referralBonus + teamBonus,
-            wallet:        referralBonus + teamBonus,
-            totalEarnings: referralBonus + teamBonus,
+            balance:       totalBonus,
+            wallet:        totalBonus,
+            totalEarnings: totalBonus,
             referralBonus: referralBonus,
-            teamBonus:     teamBonus,
-          },
-        });
+            teamBonus:     levelBonus,
+          }
+        };
 
-        console.log(`✅ Referral bonus: ${referrer.name} → ৳${referralBonus} (১০%) + ৳${teamBonus} (team bonus, ${newTeamCount} members)`);
+        // শুধু ডিরেক্ট রেফারারের (Level 1) ক্ষেত্রে প্রতি ১ টি রেফারে ১ লেভেল ও ব্যাজ বাড়বে
+        if (isDirectReferrer) {
+          const currentCount = seniorUser.teamCount || seniorUser.referralCount || 0;
+          const newTeamCount = currentCount + 1;
+
+          // ১টি রেফার করলে ১ লেভেল বাড়বে (যেমন: ১টি রেফারে Lv-2, ২টি রেফারে Lv-3)
+          const newLevel = newTeamCount + 1;
+          const newLevelBadge = `Lv-${newLevel}`;
+
+          updateData.$set = {
+            teamCount:     newTeamCount,
+            referralCount: newTeamCount,
+            level:         newLevel,
+            userLevel:     newLevel,
+            levelBadge:    newLevelBadge,
+          };
+        }
+
+        await User.findByIdAndUpdate(seniorUser._id, updateData);
+
+        console.log(`✅ Level ${level} Senior (${seniorUser.name}): Direct Refer: ৳${referralBonus}, Level Bonus: ৳${levelBonus}`);
+
+        // এর পরের লেভেলের সিনিয়রের কাছে যাওয়ার জন্য
+        currentReferralCode = seniorUser.referredBy;
+        level++;
       }
     }
 
-    // ── ৩. Payment approve ───────────────────────────────────
+    // ── ৩. Payment Status Approved করা ────────────────────────
     await Payment.findByIdAndUpdate(paymentId, {
       $set: { status: 'Approved', approvedAt: new Date() }
     });
 
     return res.json({
       success: true,
-      msg:     `পেমেন্ট Approve হয়েছে। User পেয়েছে ৳${welcomeBonus} welcome bonus।`,
+      msg: 'পেমেন্ট সফলভাবে Approve হয়েছে, বোনাস প্রদান করা হয়েছে এবং ১ রেফারে ১ লেভেল ও ব্যাজ বৃদ্ধি পেয়েছে।',
     });
 
   } catch (error) {
