@@ -8,20 +8,28 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const cron = require('node-cron');
-const { distributeTeamBonus } = require('./controllers/teamBonusController');
-
-cron.schedule('0 0 * * *', () => {
-  console.log('Daily team bonus শুরু হচ্ছে...');
-  distributeTeamBonus();
-});
+// ✅✅✅ মূল ফিক্স ✅✅✅
+// আগে এখানে distributeTeamBonus() প্রতিদিন রাত ১২টায় cron দিয়ে চালানো হতো।
+// কিন্তু এই ফাংশনটা teamCount * 10 হিসাব করে বোনাস দিত, এবং teamCount
+// কখনো রিসেট হতো না — ফলে প্রতিদিন রাতে সবাই আবার নতুন করে টাকা পেয়ে
+// যেত, একই রেফারেলের জন্য বারবার। টিম বোনাস এখন authController.js-এর
+// register() ফাংশনের ভেতরেই সঠিকভাবে event-based দেওয়া হচ্ছে (প্রতি
+// রেজিস্ট্রেশনে ঠিক একবার) — তাই এই cron job এবং সংশ্লিষ্ট import
+// সম্পূর্ণভাবে সরিয়ে দেওয়া হলো, যাতে টাকা ডুপ্লিকেট না হয়।
+//
+// const cron = require('node-cron');
+// const { distributeTeamBonus } = require('./controllers/teamBonusController');
+// cron.schedule('0 0 * * *', () => {
+//   console.log('Daily team bonus শুরু হচ্ছে...');
+//   distributeTeamBonus();
+// });
 
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('✅ Database Connected!'))
     .catch(err => console.error('❌ DB Error:', err));
 
 // ---------------------------------------------------------
-// 🛠 মেইনটেনেন্স মোড কন্ট্রোল (এখান থেকে পরিবর্তন করবেন)
+// 🛠️ মেইনটেনেন্স মোড কন্ট্রোল (এখান থেকে পরিবর্তন করবেন)
 // ---------------------------------------------------------
 
 // অ্যাপ বন্ধ রাখতে চাইলে: true , চালু করতে চাইলে: false
@@ -31,9 +39,9 @@ app.get('/api/maintenance', (req, res) => {
   res.json({ maintenance: IS_MAINTENANCE_ON });
 });
 
-// টগল রুটটি আপাতত বন্ধ রাখা হয়েছে যেহেতু ডাটাবেস মডেল নেই
+// টগল রুটটি আপাতত বন্ধ রাখা হয়েছে যেহেতু ডাটাবেস মডেল নেই
 app.get('/api/maintenance/toggle-liora-secret-2026', (req, res) => {
-  res.json({ msg: "বর্তমানে কোড থেকে ম্যানুয়ালি পরিবর্তন করতে হবে।" });
+  res.json({ msg: "বর্তমানে কোড থেকে ম্যানুয়ালি পরিবর্তন করতে হবে।" });
 });
 
 // ---------------------------------------------------------

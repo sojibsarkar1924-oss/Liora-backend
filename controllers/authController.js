@@ -4,6 +4,13 @@ const User   = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'liora_secret_key_2024';
 
+// ── বোনাস কনফিগারেশন ─────────────────────────────────────────
+const REFERRAL_BONUS   = 50; // ✅ সরাসরি referrer বোনাস (আগে ছিল ৬০)
+const LEVEL_BONUS       = 10; // ✅ নতুন: level বাড়ার বোনাস
+const TEAM_BONUS_PER_GEN = 10; // উপরের প্রতিটি জেনারেশনের বোনাস
+const MAX_TEAM_GENERATIONS = 5; // ✅ উপরে সর্বোচ্চ ৫ জন সিনিয়র পর্যন্তই (আগে ৬ ছিল)
+const MAX_LEVEL = 50; // home.tsx-এর badge সিস্টেম ১-৫০ রেঞ্জে
+
 // ── Response এ কোন কোন field পাঠাবো ─────────────────────────
 const buildUserResponse = (user) => ({
   id:            user._id,
@@ -22,11 +29,13 @@ const buildUserResponse = (user) => ({
   referredBy:    user.referredBy,
   teamCount:     user.teamCount,
   referralCount: user.referralCount,
+  level:         user.level,          // ✅ নতুন
   todayTaskCount:user.todayTaskCount,
   lastTaskDate:  user.lastTaskDate,
   welcomeBonus:  user.welcomeBonus,
   referralBonus: user.referralBonus,
   teamBonus:     user.teamBonus,
+  levelBonus:    user.levelBonus,     // ✅ নতুন
   totalEarnings: user.totalEarnings,
 });
 
@@ -75,28 +84,39 @@ exports.register = async (req, res) => {
     });
     await newUser.save();
 
-    // ── ✅ Referrer কে সরাসরি ৬০ টাকা বোনাস ────────────
-    referrer.balance       += 60;
-    referrer.wallet        += 60;
-    referrer.referralBonus += 60;
-    referrer.totalEarnings += 60;
+    // ── ✅ Referrer কে সরাসরি রেফার বোনাস (৫০ টাকা) ────────
+    referrer.balance       += REFERRAL_BONUS;
+    referrer.wallet        += REFERRAL_BONUS;
+    referrer.referralBonus += REFERRAL_BONUS;
+    referrer.totalEarnings += REFERRAL_BONUS;
     referrer.referralCount += 1;
     referrer.teamCount     += 1;
+
+    // ── ✅ নতুন: প্রতি সফল রেফারে referrer-এর level +১ ও লেভেল বোনাস (১০ টাকা)
+    referrer.level          = Math.min((referrer.level || 1) + 1, MAX_LEVEL);
+    referrer.balance       += LEVEL_BONUS;
+    referrer.wallet        += LEVEL_BONUS;
+    referrer.levelBonus    += LEVEL_BONUS;
+    referrer.totalEarnings += LEVEL_BONUS;
+
     await referrer.save();
 
-    // ── ✅ উপরের ৬ জেনারেশন প্রত্যেকে ১০ টাকা টিম বোনাস
-    // referrer এর উপরে ৬ স্তর পর্যন্ত যাবে, আর নয়
+    // ── ✅ উপরের সর্বোচ্চ ৫ জেনারেশন প্রত্যেকে ১০ টাকা টিম বোনাস
+    // এটা শুধুমাত্র তখনই ঘটে যখন কেউ (referrer) নতুন করে রেফার করে —
+    // তাই "নিচে কেউ রেফার না করলে উপরের সিনিয়ররা কিছু পাবে না" এটা
+    // এমনিতেই সত্যি, কারণ এই পুরো ব্লকটা register() ইভেন্টেই চলে,
+    // কোনো cron/scheduled recalculation দিয়ে না।
     let current = referrer;
-    for (let gen = 0; gen < 6; gen++) {
-      if (!current.referredBy) break; // আর উপরে নেই
+    for (let gen = 0; gen < MAX_TEAM_GENERATIONS; gen++) {
+      if (!current.referredBy) break; // আর উপরে কেউ নেই
 
       const senior = await User.findOne({ referralCode: current.referredBy });
       if (!senior) break;
 
-      senior.balance       += 10;
-      senior.wallet        += 10;
-      senior.teamBonus     += 10;
-      senior.totalEarnings += 10;
+      senior.balance       += TEAM_BONUS_PER_GEN;
+      senior.wallet        += TEAM_BONUS_PER_GEN;
+      senior.teamBonus     += TEAM_BONUS_PER_GEN;
+      senior.totalEarnings += TEAM_BONUS_PER_GEN;
       senior.teamCount     += 1;
       await senior.save();
 

@@ -29,12 +29,17 @@ const UserSchema = new mongoose.Schema({
   teamCount:     { type: Number, default: 0 },
   referralCount: { type: Number, default: 0 },
 
+  // ===== লেভেল =====
+  // ✅ নতুন: প্রতি সফল সরাসরি রেফারে ১ করে বাড়বে (home.tsx-এর ব্যাজ সিস্টেম ১-৫০ রেঞ্জে ব্যবহার করে)
+  level: { type: Number, default: 1, min: 1, max: 50 },
+
   // ===== ব্যালেন্স =====
   balance:       { type: Number, default: 0 },
   wallet:        { type: Number, default: 0 },
   totalEarnings: { type: Number, default: 0 },
-  referralBonus: { type: Number, default: 0 }, // সরাসরি রেফার বোনাস (৬০ টাকা)
-  teamBonus:     { type: Number, default: 0 }, // টিম বোনাস (১০ টাকা × ৬ জেনারেশন)
+  referralBonus: { type: Number, default: 0 }, // সরাসরি রেফার বোনাস (৫০ টাকা)
+  teamBonus:     { type: Number, default: 0 }, // টিম বোনাস (১০ টাকা × উপরের ৫ জেনারেশন)
+  levelBonus:    { type: Number, default: 0 }, // ✅ নতুন: লেভেল বাড়ার বোনাস (১০ টাকা প্রতি লেভেল)
   welcomeBonus:  { type: Number, default: 0 },
 
   // ===== প্যাকেজ (fixed — শুধু একটি) =====
