@@ -1,67 +1,92 @@
-const User = require('../models/User');
+// ============================================================
+// taskController.js — টাস্ক-ভিত্তিক আয় (memory/oddOneOut/captcha/video)
+// ============================================================
+// ✅ পুরনো Bronze/Silver/Gold/Platinum/Diamond প্যাকেজ-ভিত্তিক সিস্টেম
+// সম্পূর্ণ সরিয়ে ফেলা হলো — সেটা এখনকার "WinWay Premium" single-package
+// ডিজাইনের সাথে মেলে না। এখন প্রতিটা নির্দিষ্ট টাস্কের জন্য নির্দিষ্ট
+// টাকা, দিনে ঠিক একবার করে করা যাবে:
+//   মেমরি ম্যাচ   → ৳৫
+//   অড ওয়ান আউট  → ৳৫
+//   ক্যাপচা       → ৳৮
+//   ভিডিও         → ৳৯
+//   মোট সর্বোচ্চ  → ৳২৭ / দিন
+// ============================================================
 
-const PACKAGE_CONFIG = {
-  'Bronze':   { limit: 4,  perTask: 12  },
-  'Silver':   { limit: 6,  perTask: 18  },
-  'Gold':     { limit: 8,  perTask: 28 },
-  'Platinum': { limit: 10, perTask: 46 },
-  'Diamond':  { limit: 12, perTask: 80 },
+const User    = require('../models/User');
+const TaskLog = require('../models/TaskLog');
+
+const TASK_REWARDS = {
+  memory:    5,
+  oddOneOut: 5,
+  captcha:   8,
+  video:     9,
 };
 
-const getPackageConfig = (pkgName) => {
-  if (!pkgName || pkgName === 'None') return null;
-  const key = Object.keys(PACKAGE_CONFIG).find(
-    k => k.toLowerCase() === pkgName.toLowerCase()
-  );
-  return key ? PACKAGE_CONFIG[key] : null;
-};
+function getTodayString() {
+  return new Date().toISOString().split('T')[0]; // "2026-01-24"
+}
 
+// ============================================================
+// POST /api/task/do
+// Body: { userId, taskKey }  — taskKey ∈ ['memory','oddOneOut','captcha','video']
+// ============================================================
 exports.doTask = async (req, res) => {
   try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ success: false, msg: 'userId দিন।' });
+    const { userId, taskKey } = req.body;
+
+    if (!userId || !taskKey) {
+      return res.status(400).json({ success: false, msg: 'userId ও taskKey দিন।' });
+    }
+    if (!TASK_REWARDS[taskKey]) {
+      return res.status(400).json({ success: false, msg: 'ভুল taskKey।' });
+    }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, msg: 'ইউজার পাওয়া যায়নি।' });
-
+    if (!user) {
+      return res.status(404).json({ success: false, msg: 'ইউজার পাওয়া যায়নি।' });
+    }
     if (user.status !== 'active') {
       return res.status(400).json({ success: false, msg: 'আপনার একাউন্ট এখনো সক্রিয় হয়নি।' });
     }
 
-    // ✅ FIXED: packageName "None" হলে package ব্যবহার করবে
-    const pkgName = (user.packageName && user.packageName !== 'None')
-      ? user.packageName
-      : user.package;
-    const userPkg = getPackageConfig(pkgName);
+    const today  = getTodayString();
+    const reward = TASK_REWARDS[taskKey];
 
-    if (!userPkg) {
-      return res.status(400).json({ success: false, msg: 'কাজ করতে আগে একটি প্যাকেজ কিনুন।' });
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    if (user.lastTaskDate !== today) {
-      user.todayTaskCount = 0;
-      user.lastTaskDate   = today;
-    }
-
-    if (user.todayTaskCount >= userPkg.limit) {
+    // ✅ আজ এই taskKey ইতিমধ্যে সম্পন্ন হয়েছে কিনা চেক
+    const alreadyDone = await TaskLog.findOne({ userId, taskKey, date: today });
+    if (alreadyDone) {
       return res.status(400).json({
         success: false,
-        msg: `আজকের ${userPkg.limit}টি কাজ শেষ! কাল আবার আসুন।`,
+        msg: 'আজকের জন্য এই টাস্ক ইতিমধ্যে সম্পন্ন হয়েছে।',
+        alreadyDone: true,
       });
     }
 
-    user.balance        += userPkg.perTask;
-    user.todayTaskCount += 1;
+    // ✅ TaskLog এন্ট্রি তৈরি — unique index থাকায় race condition হলেও
+    // দ্বিতীয়বার একই টাস্কের জন্য এখানেই এরর দেবে, ডুপ্লিকেট টাকা যাবে না
+    try {
+      await TaskLog.create({ userId, taskKey, date: today, amount: reward });
+    } catch (dupErr) {
+      if (dupErr.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          msg: 'আজকের জন্য এই টাস্ক ইতিমধ্যে সম্পন্ন হয়েছে।',
+          alreadyDone: true,
+        });
+      }
+      throw dupErr;
+    }
+
+    user.balance       += reward;
+    user.wallet         = user.balance;
+    user.totalEarnings += reward;
     await user.save();
 
     return res.status(200).json({
-      success:    true,
-      msg:        `অভিনন্দন! আপনি ৳${userPkg.perTask} ইনকাম করেছেন।`,
+      success: true,
+      msg: `অভিনন্দন! আপনি ৳${reward} ইনকাম করেছেন।`,
+      reward,
       newBalance: user.balance,
-      done:       user.todayTaskCount,
-      limit:      userPkg.limit,
-      remaining:  userPkg.limit - user.todayTaskCount,
     });
 
   } catch (err) {
@@ -70,30 +95,34 @@ exports.doTask = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET /api/task/status/:userId
+// আজকে কোন কোন টাস্ক সম্পন্ন হয়েছে তার তালিকা ফেরত দেয়
+// ============================================================
 exports.getTaskStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId);
-    if (!user) return res.status(404).json({ success: false, msg: 'ইউজার পাওয়া যায়নি।' });
+    const { userId } = req.params;
+    const today = getTodayString();
 
-    // ✅ FIXED: এখানেও একই fix
-    const pkgName = (user.packageName && user.packageName !== 'None')
-      ? user.packageName
-      : user.package;
-    const userPkg = getPackageConfig(pkgName);
+    const logs = await TaskLog.find({ userId, date: today });
+    const doneMap = { memory: false, oddOneOut: false, captcha: false, video: false };
+    let todaysTotal = 0;
 
-    const today = new Date().toISOString().split('T')[0];
-    const done  = user.lastTaskDate === today ? (user.todayTaskCount || 0) : 0;
-    const limit = userPkg?.limit || 0;
+    logs.forEach((log) => {
+      doneMap[log.taskKey] = true;
+      todaysTotal += log.amount;
+    });
 
     return res.json({
-      success:   true,
-      done,
-      limit,
-      remaining: Math.max(0, limit - done),
-      perTask:   userPkg?.perTask || 0,
+      success: true,
+      done: doneMap,
+      todaysTotal,
+      maxDaily: Object.values(TASK_REWARDS).reduce((a, b) => a + b, 0), // ৳২৭
+      rewards: TASK_REWARDS,
     });
 
   } catch (err) {
+    console.error('getTaskStatus error:', err.message);
     return res.status(500).json({ success: false, msg: 'সার্ভার এরর।' });
   }
 };

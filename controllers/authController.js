@@ -29,7 +29,11 @@ const buildUserResponse = (user) => ({
   referredBy:    user.referredBy,
   teamCount:     user.teamCount,
   referralCount: user.referralCount,
-  level:         user.level,          // ✅ নতুন
+  // ✅ ফিক্স: level এখন সবসময় referralCount থেকে হিসাব করা হচ্ছে
+  // (আগে manually +1 করে বাড়ানো হতো, যেটা শুধু ফিক্সের পরের রেফারেই
+  // কাজ করতো — পুরনো রেফারগুলোর জন্য level কখনো বাড়তো না)। এখন থেকে
+  // যার যত রেফার, তার level ঠিক ততটাই — কোনো backfill ছাড়াই সবসময় সঠিক।
+  level:         Math.min((user.referralCount || 0) + 1, MAX_LEVEL),
   todayTaskCount:user.todayTaskCount,
   lastTaskDate:  user.lastTaskDate,
   welcomeBonus:  user.welcomeBonus,
@@ -92,8 +96,10 @@ exports.register = async (req, res) => {
     referrer.referralCount += 1;
     referrer.teamCount     += 1;
 
-    // ── ✅ নতুন: প্রতি সফল রেফারে referrer-এর level +১ ও লেভেল বোনাস (১০ টাকা)
-    referrer.level          = Math.min((referrer.level || 1) + 1, MAX_LEVEL);
+    // ── ✅ নতুন: প্রতি সফল রেফারে referrer লেভেল বোনাস (১০ টাকা) পাবে ────
+    // ✅ ফিক্স: level ফিল্ড এখানে আর ম্যানুয়ালি +1 করে বাড়ানো হচ্ছে না —
+    // level এখন সবসময় referralCount থেকে হিসাব হয় (buildUserResponse-এ),
+    // তাই এখানে শুধু বোনাসটা (টাকা) দেওয়াই যথেষ্ট।
     referrer.balance       += LEVEL_BONUS;
     referrer.wallet        += LEVEL_BONUS;
     referrer.levelBonus    += LEVEL_BONUS;
