@@ -2,15 +2,6 @@ const Payment = require('../models/Payment');
 const User    = require('../models/User');
 
 // ============================================================
-// Team / Level Bonus হিসাব
-// ============================================================
-const getTeamBonus = (teamCount) => {
-  if (teamCount <= 0) return 0;
-  if (teamCount >= 5) return 50;
-  return teamCount * 10;
-};
-
-// ============================================================
 // POST /api/payment/request
 // ============================================================
 const requestPayment = async (req, res) => {
@@ -134,63 +125,49 @@ const approveDeposit = async (req, res) => {
       },
     });
 
-    // ── ২. ৫-লেভেল আপলাইন সিনিয়রদের বোনাস প্রদান ও লেভেল/ব্যাজ আপডেট ─────────────
+    // ── ২. বোনাস প্রদান (সরাসরি রেফারার এবং উপরের ৫ জেনারেশন) ─────────────
     if (user.referredBy) {
-      let currentReferralCode = user.referredBy;
-      let level = 1;
+      const directReferrer = await User.findOne({ referralCode: user.referredBy });
 
-      // সর্বোচ্চ ৫ লেভেল (সিনিয়র ৫ জন) পর্যন্ত বোনাস যাবে
-      while (currentReferralCode && level <= 5) {
-        const seniorUser = await User.findOne({ referralCode: currentReferralCode });
-        if (!seniorUser) break; // সিনিয়র ইউজার না থাকলে লুপ বন্ধ হবে
-
-        let referralBonus = 0;
-        let levelBonus = 10; // প্রতিটি সিনিয়রের জন্য ৳১০ লেভেল বোনাস
-
-        // ১ম লেভেল (সরাসরি রেফারকারী) পাবে অতিরিক্ত ৳৫০ রেফার বোনাস (মোট ৳৬০)
-        if (level === 1) {
-          referralBonus = 50;
-        }
-
-        const totalBonus = referralBonus + levelBonus;
-        const isDirectReferrer = (level === 1);
-
-        // আপডেট অবজেক্ট তৈরি
-        const updateData = {
+      if (directReferrer) {
+        // ১. সরাসরি রেফারার পাবে ৫০ (রেফার) + ১০ (লেভেল) = মোট ৬০ টাকা
+        await User.findByIdAndUpdate(directReferrer._id, {
           $inc: {
-            balance:       totalBonus,
-            wallet:        totalBonus,
-            totalEarnings: totalBonus,
-            referralBonus: referralBonus,
-            teamBonus:     levelBonus,
+            balance:       60,
+            wallet:        60,
+            totalEarnings: 60,
+            referralBonus: 50,
+            levelBonus:    10,
+            referralCount: 1,
+            teamCount:     1
           }
-        };
+        });
 
-        // শুধু ডিরেক্ট রেফারারের (Level 1) ক্ষেত্রে প্রতি ১ টি রেফারে ১ লেভেল ও ব্যাজ বাড়বে
-        if (isDirectReferrer) {
-          const currentCount = seniorUser.teamCount || seniorUser.referralCount || 0;
-          const newTeamCount = currentCount + 1;
+        console.log(`✅ Direct Referrer (${directReferrer.name}) got 60 TK`);
 
-          // ১টি রেফার করলে ১ লেভেল বাড়বে (যেমন: ১টি রেফারে Lv-2, ২টি রেফারে Lv-3)
-          const newLevel = newTeamCount + 1;
-          const newLevelBadge = `Lv-${newLevel}`;
+        // ২. উপরের সর্বোচ্চ ৫ জেনারেশন প্রত্যেকে ১০ টাকা টিম বোনাস পাবে
+        let currentSeniorCode = directReferrer.referredBy;
+        
+        for (let gen = 0; gen < 5; gen++) {
+          if (!currentSeniorCode) break; // উপরে কেউ না থাকলে লুপ বন্ধ
 
-          updateData.$set = {
-            teamCount:     newTeamCount,
-            referralCount: newTeamCount,
-            level:         newLevel,
-            userLevel:     newLevel,
-            levelBadge:    newLevelBadge,
-          };
+          const senior = await User.findOne({ referralCode: currentSeniorCode });
+          if (!senior) break;
+
+          await User.findByIdAndUpdate(senior._id, {
+            $inc: {
+              balance:       10,
+              wallet:        10,
+              totalEarnings: 10,
+              teamBonus:     10,
+              teamCount:     1
+            }
+          });
+
+          console.log(`✅ Generation ${gen + 1} Senior (${senior.name}) got 10 TK Team Bonus`);
+          
+          currentSeniorCode = senior.referredBy; // পরের স্তরের জন্য
         }
-
-        await User.findByIdAndUpdate(seniorUser._id, updateData);
-
-        console.log(`✅ Level ${level} Senior (${seniorUser.name}): Direct Refer: ৳${referralBonus}, Level Bonus: ৳${levelBonus}`);
-
-        // এর পরের লেভেলের সিনিয়রের কাছে যাওয়ার জন্য
-        currentReferralCode = seniorUser.referredBy;
-        level++;
       }
     }
 
@@ -201,7 +178,7 @@ const approveDeposit = async (req, res) => {
 
     return res.json({
       success: true,
-      msg: 'পেমেন্ট সফলভাবে Approve হয়েছে, বোনাস প্রদান করা হয়েছে এবং ১ রেফারে ১ লেভেল ও ব্যাজ বৃদ্ধি পেয়েছে।',
+      msg: 'পেমেন্ট সফলভাবে Approve হয়েছে এবং রেফার বোনাস সঠিকভাবে প্রদান করা হয়েছে।',
     });
 
   } catch (error) {
@@ -225,7 +202,7 @@ const rejectDeposit = async (req, res) => {
       return res.status(404).json({ success: false, msg: 'পেমেন্ট পাওয়া যায়নি।' });
     }
     if (payment.status !== 'Pending') {
-      return res.status(400).json({ success: false, msg: `ইতিমধ্যে ${payment.status}।` });
+      return res.status(400).json({ success: false, msg: ইতিমধ্যে `${payment.status}।` });
     }
 
     await Payment.findByIdAndUpdate(paymentId, {
